@@ -1,1 +1,746 @@
 
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Means 클러스터링 시각화</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --text: #e8eaf6;
+    --text-muted: #7986cb;
+    --accent: #5c6bc0;
+    --c0: #ef5350;
+    --c1: #42a5f5;
+    --c2: #66bb6a;
+    --c3: #ffa726;
+    --c4: #ab47bc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px;
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    color: #c5cae9;
+    margin-bottom: 4px;
+    text-align: center;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    text-align: center;
+    font-weight: 300;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .ctrl-group label { font-weight: 500; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 90px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .val-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    color: #c5cae9;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .btn {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #7986cb; }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--text); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #scatter-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  #scatter {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    background: var(--surface2);
+    display: block;
+  }
+
+  .step-bar {
+    display: flex;
+    gap: 6px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .step-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--surface2);
+    transition: all 0.25s;
+  }
+
+  .step-chip.active {
+    border-color: var(--accent);
+    color: #c5cae9;
+    background: rgba(92, 107, 192, 0.15);
+  }
+
+  .step-chip.done {
+    border-color: #66bb6a44;
+    color: #66bb6a;
+    background: rgba(102, 187, 106, 0.08);
+  }
+
+  .step-num {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .step-chip.active .step-num { background: var(--accent); color: #fff; }
+  .step-chip.done .step-num { background: #66bb6a; color: #fff; }
+
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+
+  .info-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: #c5cae9;
+    line-height: 1.6;
+    margin-bottom: 18px;
+    min-height: 64px;
+  }
+
+  .cluster-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .cluster-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  .cluster-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .cluster-info { flex: 1; }
+  .cluster-name { font-size: 0.8rem; font-weight: 500; margin-bottom: 2px; }
+
+  .cluster-bar-wrap {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .cluster-bar { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  .cluster-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: right;
+    min-width: 48px;
+  }
+
+  #iter-chart-wrap { margin-top: 18px; }
+
+  #iter-chart {
+    width: 100%;
+    height: 120px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: block;
+  }
+
+  .converge-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(102, 187, 106, 0.12);
+    border: 1px solid #66bb6a55;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    color: #66bb6a;
+    margin-top: 10px;
+  }
+
+  .dot-pulse {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #66bb6a;
+    animation: pulse 1.4s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  .footer-note {
+    font-size: 0.73rem;
+    color: #3d4570;
+    margin-top: 28px;
+    text-align: center;
+  }
+
+  @media (max-width: 720px) {
+    .main-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>K-Means Clustering</h1>
+<p class="subtitle">단계별 알고리즘 시각화 · 직접 조작하고 관찰하세요</p>
+
+<div class="main-layout">
+
+  <div class="card">
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>K (클러스터 수)</label>
+        <input type="range" id="k-slider" min="2" max="5" value="3">
+        <span class="val-badge" id="k-val">3</span>
+      </div>
+      <div class="ctrl-group">
+        <label>데이터 수</label>
+        <input type="range" id="n-slider" min="30" max="200" value="80" step="10">
+        <span class="val-badge" id="n-val">80</span>
+      </div>
+      <button class="btn btn-outline" id="btn-reset">⟳ 데이터 생성</button>
+      <button class="btn btn-primary" id="btn-next">다음 단계 →</button>
+      <button class="btn btn-outline" id="btn-auto">▶ 자동 실행</button>
+    </div>
+
+    <div id="scatter-wrap">
+      <canvas id="scatter"></canvas>
+    </div>
+
+    <div class="step-bar" id="step-bar"></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div class="card">
+      <div class="panel-title">📋 현재 단계</div>
+      <div class="info-box" id="info-box">데이터를 생성하고 [다음 단계]를 눌러 시작하세요.</div>
+      <div id="converge-wrap" style="display:none;">
+        <span class="converge-badge"><span class="dot-pulse"></span> 수렴 완료</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="panel-title">📊 클러스터 분포</div>
+      <div class="cluster-list" id="cluster-list"></div>
+    </div>
+
+    <div class="card" id="iter-chart-wrap">
+      <div class="panel-title">📈 반복별 이동 거리</div>
+      <canvas id="iter-chart"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<p class="footer-note">K-Means: 1. 초기 중심 선택 → 2. 각 점을 가장 가까운 중심에 할당 → 3. 중심 재계산 → 수렴까지 반복</p>
+
+<script>
+const COLORS = ['#ef5350','#42a5f5','#66bb6a','#ffa726','#ab47bc'];
+const STEPS = [
+  { id:'init',   label:'초기화'   },
+  { id:'assign', label:'할당'     },
+  { id:'update', label:'중심 갱신' },
+  { id:'check',  label:'수렴 확인' },
+];
+
+let K = 3, N = 80;
+let points = [];
+let centroids = [];
+let prevCentroids = [];
+let phase = 'idle';
+let iteration = 0;
+let converged = false;
+let autoTimer = null;
+let iterHistory = [];
+
+const canvas = document.getElementById('scatter');
+const ctx = canvas.getContext('2d');
+const icCanvas = document.getElementById('iter-chart');
+const icCtx = icCanvas.getContext('2d');
+
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  canvas.width = w; canvas.height = w;
+  icCanvas.width = icCanvas.parentElement.clientWidth - 40;
+  icCanvas.height = 120;
+  draw();
+  drawIterChart();
+}
+
+window.addEventListener('resize', resize);
+
+function randn() {
+  let u = 0, v = 0;
+  while (!u) u = Math.random();
+  while (!v) v = Math.random();
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+}
+
+function generateData() {
+  points = [];
+  const centers = Array.from({length: K}, () => ({
+    x: 0.15 + Math.random() * 0.7,
+    y: 0.15 + Math.random() * 0.7,
+  }));
+  for (let i = 0; i < N; i++) {
+    const c = centers[Math.floor(Math.random() * K)];
+    points.push({
+      x: Math.max(0.02, Math.min(0.98, c.x + randn() * 0.1)),
+      y: Math.max(0.02, Math.min(0.98, c.y + randn() * 0.1)),
+      cluster: -1,
+    });
+  }
+}
+
+function stepInit() {
+  const shuffled = [...points].sort(() => Math.random() - 0.5);
+  centroids = shuffled.slice(0, K).map(p => ({x: p.x, y: p.y}));
+  prevCentroids = centroids.map(c => ({...c}));
+  points.forEach(p => p.cluster = -1);
+  iteration = 0;
+  converged = false;
+  iterHistory = [];
+  phase = 'init';
+  setInfo('🎯 <b>초기화</b>: 데이터에서 K개의 초기 중심점(★)을 무작위로 선택했습니다.');
+  updateStepBar('init');
+  document.getElementById('converge-wrap').style.display = 'none';
+}
+
+function stepAssign() {
+  points.forEach(p => {
+    let best = 0, bestDist = Infinity;
+    centroids.forEach((c, i) => {
+      const d = (p.x - c.x)**2 + (p.y - c.y)**2;
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    p.cluster = best;
+  });
+  phase = 'assign';
+  setInfo(`🎨 <b>할당 단계 (반복 ${iteration + 1})</b>: 각 데이터 포인트를 가장 가까운 중심에 할당합니다.`);
+  updateStepBar('assign');
+}
+
+function stepUpdate() {
+  prevCentroids = centroids.map(c => ({...c}));
+  centroids = centroids.map((_, i) => {
+    const members = points.filter(p => p.cluster === i);
+    if (members.length === 0) return centroids[i];
+    return {
+      x: members.reduce((s, p) => s + p.x, 0) / members.length,
+      y: members.reduce((s, p) => s + p.y, 0) / members.length,
+    };
+  });
+  phase = 'update';
+  setInfo(`🔄 <b>중심 갱신 (반복 ${iteration + 1})</b>: 각 클러스터의 평균 위치로 중심점을 이동합니다.`);
+  updateStepBar('update');
+}
+
+function stepCheck() {
+  iteration++;
+  const totalMove = centroids.reduce((s, c, i) => {
+    return s + Math.sqrt((c.x - prevCentroids[i].x)**2 + (c.y - prevCentroids[i].y)**2);
+  }, 0);
+  iterHistory.push(totalMove);
+  converged = totalMove < 0.001;
+
+  if (converged) {
+    phase = 'done';
+    setInfo(`✅ <b>수렴 완료!</b> ${iteration}번의 반복 끝에 중심점의 이동이 멈췄습니다. 클러스터링이 완료되었습니다.`);
+    document.getElementById('converge-wrap').style.display = 'block';
+    stopAuto();
+  } else {
+    phase = 'check';
+    setInfo(`🔍 <b>수렴 확인 (반복 ${iteration})</b>: 중심 이동 거리 = ${totalMove.toFixed(4)}. 아직 수렴하지 않았습니다.`);
+  }
+  updateStepBar('check');
+  drawIterChart();
+}
+
+function nextStep() {
+  if (phase === 'idle') { stepInit(); }
+  else if (phase === 'init' || phase === 'check') { stepAssign(); }
+  else if (phase === 'assign') { stepUpdate(); }
+  else if (phase === 'update') { stepCheck(); }
+  else if (phase === 'done') { reset(); return; }
+  draw();
+  updateClusterStats();
+}
+
+function toCanvas(v) {
+  const pad = 28;
+  return pad + v * (canvas.width - pad * 2);
+}
+
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = '#ffffff08';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 5; i++) {
+    const x = (w / 5) * i, y = (h / 5) * i;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  if (phase === 'assign') {
+    points.forEach(p => {
+      if (p.cluster < 0) return;
+      const c = centroids[p.cluster];
+      ctx.beginPath();
+      ctx.moveTo(toCanvas(p.x), toCanvas(p.y));
+      ctx.lineTo(toCanvas(c.x), toCanvas(c.y));
+      ctx.strokeStyle = COLORS[p.cluster] + '22';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    });
+  }
+
+  if (phase === 'update' && prevCentroids.length === centroids.length) {
+    centroids.forEach((c, i) => {
+      const px = toCanvas(prevCentroids[i].x), py = toCanvas(prevCentroids[i].y);
+      const cx2 = toCanvas(c.x), cy2 = toCanvas(c.y);
+      if (Math.abs(px - cx2) < 1 && Math.abs(py - cy2) < 1) return;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(cx2, cy2);
+      ctx.strokeStyle = COLORS[i] + 'aa';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const angle = Math.atan2(cy2 - py, cx2 - px);
+      ctx.beginPath();
+      ctx.moveTo(cx2, cy2);
+      ctx.lineTo(cx2 - 8 * Math.cos(angle - 0.4), cy2 - 8 * Math.sin(angle - 0.4));
+      ctx.lineTo(cx2 - 8 * Math.cos(angle + 0.4), cy2 - 8 * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS[i] + 'bb';
+      ctx.fill();
+    });
+  }
+
+  points.forEach(p => {
+    const x = toCanvas(p.x), y = toCanvas(p.y);
+    const col = p.cluster >= 0 ? COLORS[p.cluster] : '#4a5080';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = col + (p.cluster >= 0 ? 'cc' : '88');
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  if (phase !== 'idle') {
+    centroids.forEach((c, i) => {
+      drawStar(ctx, toCanvas(c.x), toCanvas(c.y), 5, 11, 5, COLORS[i]);
+    });
+  }
+}
+
+function drawStar(ctx, cx, cy, spikes, outerR, innerR, color) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (Math.PI / spikes) * i - Math.PI / 2;
+    ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawIterChart() {
+  const w = icCanvas.width, h = icCanvas.height;
+  icCtx.clearRect(0, 0, w, h);
+  if (iterHistory.length < 1) return;
+
+  const pad = { t: 10, r: 10, b: 24, l: 36 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const maxV = Math.max(...iterHistory, 0.01);
+
+  icCtx.strokeStyle = '#2e3350';
+  icCtx.lineWidth = 1;
+  icCtx.beginPath();
+  icCtx.moveTo(pad.l, pad.t);
+  icCtx.lineTo(pad.l, pad.t + ih);
+  icCtx.lineTo(pad.l + iw, pad.t + ih);
+  icCtx.stroke();
+
+  icCtx.fillStyle = '#7986cb';
+  icCtx.font = '10px Space Mono, monospace';
+  icCtx.textAlign = 'right';
+  icCtx.fillText(maxV.toFixed(2), pad.l - 4, pad.t + 10);
+  icCtx.fillText('0', pad.l - 4, pad.t + ih);
+  icCtx.textAlign = 'center';
+  iterHistory.forEach((_, i) => {
+    icCtx.fillText(i + 1, pad.l + (i + 0.5) * (iw / iterHistory.length), pad.t + ih + 14);
+  });
+
+  icCtx.beginPath();
+  icCtx.moveTo(pad.l, pad.t + ih);
+  iterHistory.forEach((v, i) => {
+    icCtx.lineTo(pad.l + (i + 0.5) * (iw / iterHistory.length), pad.t + ih - (v / maxV) * ih);
+  });
+  icCtx.lineTo(pad.l + (iterHistory.length - 0.5) * (iw / iterHistory.length), pad.t + ih);
+  icCtx.closePath();
+  const grad = icCtx.createLinearGradient(0, pad.t, 0, pad.t + ih);
+  grad.addColorStop(0, '#5c6bc055');
+  grad.addColorStop(1, '#5c6bc000');
+  icCtx.fillStyle = grad;
+  icCtx.fill();
+
+  icCtx.beginPath();
+  iterHistory.forEach((v, i) => {
+    const x = pad.l + (i + 0.5) * (iw / iterHistory.length);
+    const y = pad.t + ih - (v / maxV) * ih;
+    i === 0 ? icCtx.moveTo(x, y) : icCtx.lineTo(x, y);
+  });
+  icCtx.strokeStyle = '#7986cb';
+  icCtx.lineWidth = 2;
+  icCtx.stroke();
+
+  iterHistory.forEach((v, i) => {
+    const x = pad.l + (i + 0.5) * (iw / iterHistory.length);
+    const y = pad.t + ih - (v / maxV) * ih;
+    icCtx.beginPath();
+    icCtx.arc(x, y, 3.5, 0, Math.PI * 2);
+    icCtx.fillStyle = i === iterHistory.length - 1 ? '#c5cae9' : '#5c6bc0';
+    icCtx.fill();
+  });
+}
+
+function setInfo(html) {
+  document.getElementById('info-box').innerHTML = html;
+}
+
+function updateStepBar(activeId) {
+  const bar = document.getElementById('step-bar');
+  bar.innerHTML = '';
+  const phaseOrder = ['init', 'assign', 'update', 'check'];
+  const activeIdx = phaseOrder.indexOf(activeId);
+  STEPS.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'step-chip' + (i === activeIdx ? ' active' : i < activeIdx ? ' done' : '');
+    div.innerHTML = `<span class="step-num">${i + 1}</span>${s.label}`;
+    bar.appendChild(div);
+  });
+}
+
+function updateClusterStats() {
+  const list = document.getElementById('cluster-list');
+  list.innerHTML = '';
+  if (phase === 'idle' || phase === 'init') {
+    list.innerHTML = '<div style="font-size:0.8rem;color:#4a5080">할당 후 표시됩니다.</div>';
+    return;
+  }
+  const counts = Array(K).fill(0);
+  points.forEach(p => { if (p.cluster >= 0) counts[p.cluster]++; });
+  const maxC = Math.max(...counts, 1);
+  counts.forEach((cnt, i) => {
+    const div = document.createElement('div');
+    div.className = 'cluster-item';
+    div.innerHTML = `
+      <div class="cluster-dot" style="background:${COLORS[i]}"></div>
+      <div class="cluster-info">
+        <div class="cluster-name" style="color:${COLORS[i]}">클러스터 ${i + 1}</div>
+        <div class="cluster-bar-wrap">
+          <div class="cluster-bar" style="width:${(cnt/maxC)*100}%;background:${COLORS[i]}66"></div>
+        </div>
+      </div>
+      <div class="cluster-count">${cnt}개</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function reset() {
+  stopAuto();
+  phase = 'idle';
+  generateData();
+  centroids = [];
+  prevCentroids = [];
+  iteration = 0;
+  converged = false;
+  iterHistory = [];
+  document.getElementById('converge-wrap').style.display = 'none';
+  setInfo('데이터를 생성하고 [다음 단계]를 눌러 시작하세요.');
+  document.getElementById('step-bar').innerHTML = '';
+  updateClusterStats();
+  draw();
+  drawIterChart();
+}
+
+function startAuto() {
+  if (autoTimer) return;
+  autoTimer = setInterval(() => {
+    if (phase === 'done') { stopAuto(); return; }
+    nextStep();
+  }, 900);
+  document.getElementById('btn-auto').textContent = '⏹ 정지';
+}
+
+function stopAuto() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+  document.getElementById('btn-auto').textContent = '▶ 자동 실행';
+}
+
+document.getElementById('k-slider').addEventListener('input', function () {
+  K = +this.value;
+  document.getElementById('k-val').textContent = K;
+  reset();
+});
+
+document.getElementById('n-slider').addEventListener('input', function () {
+  N = +this.value;
+  document.getElementById('n-val').textContent = N;
+  reset();
+});
+
+document.getElementById('btn-reset').addEventListener('click', reset);
+document.getElementById('btn-next').addEventListener('click', () => { stopAuto(); nextStep(); });
+document.getElementById('btn-auto').addEventListener('click', () => {
+  if (autoTimer) { stopAuto(); return; }
+  if (phase === 'idle') nextStep();
+  startAuto();
+});
+
+generateData();
+updateClusterStats();
+requestAnimationFrame(() => { resize(); draw(); });
+</script>
+</body>
+</html>
